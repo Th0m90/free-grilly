@@ -1,15 +1,16 @@
 const cacheName = 'grilly-pwa-v1';
 const filesToCache = [
-  'index.html',
-  'about.html',
-  'probes.html',
-  'settings.html',
-  'bootstrap.min.js',
-  'custom-boostrap.min.css',
-  'manifest.webmanifest',
-  'icons/icon-192.png',
-  'icons/icon-512.png'
+  './index.html',
+  './about.html',
+  './settings.html',
+  './probes.html',
+  './custom-bootstrap.min.css',
+  './bootstrap.min.js',
+  './manifest.webmanifest',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ];
+
 
 // Install event
 self.addEventListener('install', (event) => {
