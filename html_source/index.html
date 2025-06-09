@@ -10,9 +10,24 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
     <meta name="theme-color" content="#007bff">
+    <!-- Thema stylesheet -->
+    <link rel="stylesheet" href="grilly-ui/themes/theme-light.css" id="theme-link">
+    <!-- UI library stylesheet -->
+    <link rel="stylesheet" href="grilly-ui/grilly-ui.css">
+    <!-- JavaScript (alpinejs en je eigen lib) -->
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <script src="grilly-ui/grilly-ui.js" defer></script>
+
 
   </head>
   <body>
+
+    <div style="position: fixed; top: 1rem; right: 1rem; z-index: 9999;">
+        <button class="grilly-button" id="theme-toggle" style="padding: 0.4rem 0.8rem; font-size: 0.9rem;">
+          🌙 Donker
+        </button>
+      </div>
+            
     <nav class="navbar navbar-expand bg-body-tertiary">
         <div class="container-fluid">
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,11 +54,41 @@
             </div>
         </div>
     </nav>
-    <div class="container">
-        <div class="my-2 row">
-            <div class="col-5 col-lg-7">
-                <h5 id="grill-name">Free Grilly</h5>
-            </div>
+
+    <div style="margin: 1rem 0;">
+        <label>
+          <input type="checkbox" id="toggleFake" />
+          🔧 Gebruik testdata
+        </label>
+      </div>
+      
+
+    <!-- Tijdsselectie -->
+<label for="time-range">Tijdsframe:</label>
+<select id="time-range">
+  <option value="10">Laatste 10 minuten</option>
+  <option value="30">Laatste 30 minuten</option>
+  <option value="60" selected>Laatste uur</option>
+</select>
+
+<!-- Grafiek -->
+<div class="grilly-chart-container">
+    <canvas id="tempChart" style="width: 100%; height: auto;"></canvas>
+  </div>
+  
+
+<!-- Probe kaarten -->
+<div id="probe-container"></div>
+
+
+    <!-- Externe Chart.js bibliotheek -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Jouw eigen grafiekscript -->
+    <script src="grilly-ui/charts/grilly-chart.js"></script>
+
+
+      
         
             <div class="col-7 col-lg-5 text-end">
                 <span class="badge bg-success" id="grill-battery">BAT <span id="grill-battery-percentage">0</span>% <i id="grill-battery-charging">++</i></span>
@@ -358,6 +403,149 @@
         pollingLoop();
 
     </script>
+
+
+<script>
+    const probeColors = ['#007bff', '#dc3545', '#28a745', '#ffc107', '#17a2b8', '#6610f2', '#6f42c1', '#fd7e14'];
+    let chart = null;
+    let activeProbes = [];
+  
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggleFake = document.getElementById("toggleFake");
+  
+      // Herstel voorkeur
+      const stored = localStorage.getItem("useFakeData") === "true";
+      toggleFake.checked = stored;
+  
+      toggleFake.addEventListener("change", () => {
+        localStorage.setItem("useFakeData", toggleFake.checked);
+        loadProbes();
+      });
+  
+      loadProbes();
+      document.getElementById("time-range").addEventListener("change", () => renderChart(activeProbes));
+    });
+  
+    async function loadProbes() {
+      const useFakeData = localStorage.getItem("useFakeData") === "true";
+      let probes;
+  
+      if (useFakeData) {
+        probes = [
+          { probe_id: 1, temperature: 63.5, target_temperature: 70, connected: true },
+          { probe_id: 2, temperature: 59.1, target_temperature: 68, connected: true },
+          { probe_id: 3, temperature: 0, target_temperature: 0, connected: false },
+          { probe_id: 4, temperature: 61.3, target_temperature: 72, connected: true }
+        ];
+      } else {
+        const DEVICE_IP = localStorage.getItem("grilly-ip") || "192.168.1.123";
+        const res = await fetch(`http://${DEVICE_IP}/api/probes`);
+        probes = await res.json();
+      }
+  
+      const active = probes.filter(p => p.connected);
+      activeProbes = active;
+      renderProbes(active);
+      renderChart(active);
+    }
+  
+    function renderProbes(probes) {
+      const container = document.getElementById("probe-container");
+      container.innerHTML = '';
+  
+      if (!probes.length) {
+        container.innerHTML = '<p><em>Geen actieve probes aangesloten.</em></p>';
+        return;
+      }
+  
+      probes.forEach((p) => {
+        const div = document.createElement("div");
+        div.className = "grilly-card";
+        div.innerHTML = `
+          <h3>Probe ${p.probe_id}</h3>
+          <p>Temperatuur: ${p.temperature.toFixed(1)} °C</p>
+          <p>Doel: ${p.target_temperature} °C</p>
+        `;
+        container.appendChild(div);
+      });
+    }
+  
+    function renderChart(probes) {
+      const minutes = parseInt(document.getElementById("time-range").value);
+      const labels = generateTimeLabels(minutes);
+  
+      const datasets = probes.map((p, i) => ({
+        label: `Probe ${p.probe_id}`,
+        data: simulateProbeData(p.temperature, labels.length),
+        borderColor: probeColors[i % probeColors.length],
+        tension: 0.3,
+        fill: false
+      }));
+  
+      try {
+  if (Chart.getChart("tempChart")) {
+    Chart.getChart("tempChart").destroy();
+  }
+} catch (e) {
+  console.warn("Kon bestaande grafiek niet vernietigen:", e);
+}
+
+
+  
+      const ctx = document.getElementById("tempChart").getContext("2d");
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets
+        },
+        options: {
+          responsive: true,
+          animation: false,
+          scales: {
+            y: {
+              beginAtZero: false,
+              title: {
+                display: true,
+                text: 'Temperatuur (°C)'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: `Tijd (laatste ${minutes} minuten)`
+              }
+            }
+          }
+        }
+      });
+    }
+  
+    function generateTimeLabels(minutes) {
+      const interval = 5;
+      const now = new Date();
+      return Array.from({ length: minutes / interval }, (_, i) => {
+        const t = new Date(now - (minutes - i * interval) * 60000);
+        return `${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}`;
+      });
+    }
+  
+    function simulateProbeData(currentTemp, length) {
+      return Array.from({ length }, () =>
+        (currentTemp + (Math.random() - 0.5) * 0.5).toFixed(2)
+      );
+    }
+  </script>
+  
+  
+
+<button id="installBtn" class="grilly-button"
+  style="position: fixed; bottom: 1rem; right: 1rem; z-index: 9999; display: none;">
+  ➕ Installeer app
+</button>
+
+
+
 <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -371,35 +559,36 @@
       });
     }
   </script> 
-  <button id="installBtn" style="display: none;">
-    ➕ Voeg toe aan startscherm
-  </button>
   
-  <script>
-    let deferredPrompt;
   
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-  
-      const installBtn = document.getElementById('installBtn');
-      installBtn.style.display = 'block';
-  
-      installBtn.addEventListener('click', () => {
-        installBtn.style.display = 'none';
-        deferredPrompt.prompt();
-  
-        deferredPrompt.userChoice.then((choiceResult) => {
-          if (choiceResult.outcome === 'accepted') {
-            console.log('✅ Gebruiker installeerde de PWA');
-          } else {
-            console.log('❌ Gebruiker annuleerde de installatie');
+    <script>
+        let deferredPrompt;
+      
+        window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          deferredPrompt = e;
+      
+          const installBtn = document.getElementById('installBtn');
+          if (installBtn) {
+            installBtn.style.display = 'block';
+      
+            installBtn.addEventListener('click', () => {
+              installBtn.style.display = 'none';
+              deferredPrompt.prompt();
+      
+              deferredPrompt.userChoice.then((choice) => {
+                if (choice.outcome === 'accepted') {
+                  console.log('✅ PWA geïnstalleerd');
+                } else {
+                  console.log('❌ Installatie geweigerd');
+                }
+                deferredPrompt = null;
+              });
+            });
           }
-          deferredPrompt = null;
         });
-      });
-    });
-  </script>
+      </script>
+      
       
   </body>
 </html>

@@ -1,0 +1,13 @@
+:root {
+    --primary-color: #007bff;
+    --card-bg: #ffffff;
+    --card-border: #dee2e6;
+    --modal-bg: rgba(0, 0, 0, 0.5);
+    --text-color: #000000;
+    --bg-color: #f8f9fa;
+  }
+  body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+  }
+  

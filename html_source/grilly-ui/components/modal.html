@@ -1,0 +1,12 @@
+<div x-data="{ open: false }">
+    <button class="grilly-button" @click="open = true">Open modal</button>
+  
+    <div class="grilly-modal" x-show="open" @click.self="open = false">
+      <div class="grilly-modal-content">
+        <h2>Modal Titel</h2>
+        <p>Inhoud van de modal</p>
+        <button class="grilly-button" @click="open = false">Sluiten</button>
+      </div>
+    </div>
+  </div>
+  
